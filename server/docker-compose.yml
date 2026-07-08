@@ -1,0 +1,45 @@
+# Central monitoring server: InfluxDB 3 Core + Explorer UI.
+# Runs on ONE host; every node's mtr-agent writes here over the private network.
+#
+# First-time bootstrap (see README):
+#   1. docker compose up -d influxdb3
+#   2. docker compose exec influxdb3 influxdb3 create token --admin   # save the apiv3_... token
+#   3. docker compose exec influxdb3 influxdb3 create database mtr --token <token>
+#   4. docker compose up -d explorer   # then open http://<server>:8080
+
+services:
+  influxdb3:
+    image: influxdb:3-core
+    container_name: mtr-influxdb3
+    restart: unless-stopped
+    command:
+      - influxdb3
+      - serve
+      - --node-id=node0
+      - --object-store=file
+      - --data-dir=/var/lib/influxdb3
+      - --http-bind=0.0.0.0:8181
+    ports:
+      - "8181:8181"
+    volumes:
+      - influxdb3-data:/var/lib/influxdb3
+
+  explorer:
+    image: influxdata/influxdb3-ui:latest
+    container_name: mtr-explorer
+    restart: unless-stopped
+    # admin mode enables full functionality (query + manage) in the UI.
+    command: ["--mode=admin"]
+    environment:
+      # Change this to any long random string before exposing the UI.
+      SESSION_SECRET_KEY: "change-me-to-a-long-random-string"
+    ports:
+      - "8080:8080"
+    volumes:
+      - explorer-data:/db
+    depends_on:
+      - influxdb3
+
+volumes:
+  influxdb3-data:
+  explorer-data:
