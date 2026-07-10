@@ -1,11 +1,15 @@
-# Central monitoring server: InfluxDB 3 Core + Explorer UI.
+# Central monitoring server: InfluxDB 3 Core + the Next.js dashboard.
 # Runs on ONE host; every node's mtr-agent writes here over the private network.
 #
 # First-time bootstrap (see README):
 #   1. docker compose up -d influxdb3
 #   2. docker compose exec influxdb3 influxdb3 create token --admin   # save the apiv3_... token
 #   3. docker compose exec influxdb3 influxdb3 create database mtr --token <token>
-#   4. docker compose up -d explorer   # then open http://<server>:8080
+#   4. put the token in server/.env  (INFLUX_TOKEN=apiv3_...), then:
+#   5. docker compose up -d dashboard          # open http://<server>:3000
+#
+# The InfluxDB 3 Explorer UI is optional (ad-hoc SQL):
+#   docker compose --profile explorer up -d explorer   # open http://<server>:8080
 
 services:
   influxdb3:
@@ -24,14 +28,27 @@ services:
     volumes:
       - influxdb3-data:/var/lib/influxdb3
 
+  dashboard:
+    build: ../dashboard
+    container_name: mtr-dashboard
+    restart: unless-stopped
+    environment:
+      INFLUX_HOST: http://influxdb3:8181
+      INFLUX_DATABASE: mtr
+      INFLUX_TOKEN: ${INFLUX_TOKEN:?set INFLUX_TOKEN in server/.env}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - influxdb3
+
+  # Optional: official InfluxDB 3 Explorer UI for ad-hoc SQL queries.
   explorer:
     image: influxdata/influxdb3-ui:latest
     container_name: mtr-explorer
     restart: unless-stopped
-    # admin mode enables full functionality (query + manage) in the UI.
+    profiles: ["explorer"]
     command: ["--mode=admin"]
     environment:
-      # Change this to any long random string before exposing the UI.
       SESSION_SECRET_KEY: "change-me-to-a-long-random-string"
     ports:
       - "8080:8080"

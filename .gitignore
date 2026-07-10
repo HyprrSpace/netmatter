@@ -1,3 +1,8 @@
 .idea/
 __pycache__/
 *.pyc
+
+# secrets / local env
+server/.env
+.env
+.env.local
