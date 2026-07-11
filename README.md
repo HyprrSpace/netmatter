@@ -1,9 +1,9 @@
-# MTR Monitor (multi-node)
+# netmatter — multi-node MTR monitor
 
-Distributed network-path monitor. A lightweight **agent** runs `mtr` on each node and
-writes per-hop loss/latency to a **central InfluxDB 3 Core** database. Data is visualized
-with a purpose-built **Next.js + shadcn dashboard** (see [`dashboard/`](dashboard/)); the
-official InfluxDB 3 Explorer UI is available optionally for ad-hoc SQL.
+Distributed network-path monitor. A lightweight **agent** runs [`mtr`](https://github.com/traviscross/mtr)
+on each of your nodes and writes per-hop packet-loss/latency to a **central InfluxDB 3 Core**
+database. A purpose-built **Next.js + shadcn dashboard** visualizes packet loss over time,
+per node and per hop. The official InfluxDB 3 Explorer UI is available optionally for ad-hoc SQL.
 
 ```
   node A ─┐   (mtr + writer, --net=host)
@@ -14,24 +14,30 @@ official InfluxDB 3 Explorer UI is available optionally for ad-hoc SQL.
 Every point carries a **`node`** tag, so data from all nodes lands in one database and stays
 separable.
 
+![netmatter dashboard](.github/img/screenshot1.png)
+
 ## Architecture
 
-| Role      | Runs                                    | Where                |
-|-----------|-----------------------------------------|----------------------|
-| Server    | `influxdb3-core` + Next.js `dashboard`  | one central host     |
-| Agent     | Alpine container: `mtr` + `agent.py`    | every monitored node |
-| Dashboard | Next.js + shadcn charts (`dashboard/`)  | central host, :3000  |
+| Role      | Runs                                    | Where                | Image |
+|-----------|-----------------------------------------|----------------------|-------|
+| Server    | InfluxDB 3 Core (`influxdb:3-core`)     | one central host     | official |
+| Agent     | Alpine: `mtr` + `agent.py` writer       | every monitored node | `ghcr.io/hyprrspace/netmatter-agent` |
+| Dashboard | Next.js + shadcn charts                 | central host, :3000  | `ghcr.io/hyprrspace/netmatter-dashboard` |
 
 ### Data schema
 Single measurement **`mtr`**:
 - **Tags:** `node`, `destination`, `hop` (hop is `NN-host`, zero-padded so >9 hops sort right)
 - **Fields:** `loss`, `snt`, `last`, `avg`, `best`, `wrst`, `stdev`
 
+Prebuilt agent and dashboard images are published to GHCR by CI on every push to `main`
+(and on version tags) — see [`.github/workflows/build-images.yml`](.github/workflows/build-images.yml).
+The agent image is multi-arch (`amd64` + `arm64`).
+
 ---
 
 ## 1. Set up the central server
 
-On the central host (`server/`):
+On the central host (in `server/`):
 
 ```bash
 cd server
@@ -48,29 +54,22 @@ echo "INFLUX_TOKEN=<apiv3_...>" > .env
 docker compose up -d dashboard
 ```
 
-Then open the dashboard at **http://<server>:3000**.
+Then open the dashboard at **http://&lt;server&gt;:3000**.
 
-Optionally start the official InfluxDB 3 Explorer UI for ad-hoc SQL:
-`docker compose --profile explorer up -d explorer` → **http://<server>:8080**
+Optionally start the InfluxDB 3 Explorer UI for ad-hoc SQL:
+`docker compose --profile explorer up -d explorer` → **http://&lt;server&gt;:8080**
 (connect it to `http://influxdb3:8181` with the token + database `mtr`).
 
-**Note on InfluxDB 3 Core:** Core has no compaction and each query is limited to a ~72h
-range — ideal for recent connectivity, not long-term trend history. If you later need full
-history, switch the `influxdb3` image to `influxdb:3-enterprise` (free for
-at-home/non-production use); everything else stays the same.
+> **InfluxDB 3 Core note:** Core has no compaction and limits each query to a ~72h range —
+> ideal for recent connectivity, not long-term trend history. For full history switch the
+> `influxdb3` image to `influxdb:3-enterprise` (free for at-home/non-production use);
+> nothing else changes.
 
 ---
 
 ## 2. Run an agent on each node
 
-Build the image once (or push it to a registry your nodes can pull):
-
-```bash
-cd agent
-docker build -t mtr-agent .
-```
-
-Run it on every node you want to monitor from:
+Use the published image (or build locally from `agent/`):
 
 ```bash
 docker run -d --name mtr-agent --restart=unless-stopped \
@@ -80,34 +79,55 @@ docker run -d --name mtr-agent --restart=unless-stopped \
   -e INFLUX_DATABASE=mtr \
   -e NODE_NAME=$(hostname) \
   -e MTR_HOSTS=8.8.8.8,reddit.com,facebook.com \
-  mtr-agent
+  ghcr.io/hyprrspace/netmatter-agent:latest
 ```
 
 - `--cap-add=NET_RAW` lets `mtr` open raw sockets.
 - `--net=host` gives the container the node's real routing and identity.
+- To build locally instead: `docker build -t mtr-agent ./agent`.
 
 ### Agent configuration (env vars)
 
-| Variable          | Default          | Meaning                                   |
-|-------------------|------------------|-------------------------------------------|
-| `INFLUX_HOST`     | `http://localhost:8181` | Central InfluxDB 3 URL              |
-| `INFLUX_TOKEN`    | *(required)*     | Admin/write token (`apiv3_...`)           |
-| `INFLUX_DATABASE` | `mtr`            | Target database                           |
-| `NODE_NAME`       | container hostname | Value of the `node` tag                 |
-| `MTR_HOSTS`       | `8.8.8.8`        | Comma-separated destinations to probe     |
-| `MTR_CYCLES`      | `30`             | Pings per mtr report                      |
-| `INTERVAL`        | `40`             | Seconds between rounds                    |
+| Variable          | Default            | Meaning                               |
+|-------------------|--------------------|---------------------------------------|
+| `INFLUX_HOST`     | `http://localhost:8181` | Central InfluxDB 3 URL           |
+| `INFLUX_TOKEN`    | *(required)*       | Admin/write token (`apiv3_...`)       |
+| `INFLUX_DATABASE` | `mtr`              | Target database                       |
+| `NODE_NAME`       | container hostname | Value of the `node` tag               |
+| `MTR_HOSTS`       | `8.8.8.8`          | Comma-separated destinations to probe |
+| `MTR_CYCLES`      | `30`               | Pings per mtr report                  |
+| `INTERVAL`        | `40`               | Seconds between rounds                |
 
 ---
 
-## 3. View the data
+## 3. The dashboard
 
-Open the dashboard at **http://<server>:3000**. It charts packet **loss over time** with
-filters for destination, time range, node (multiselect / all), and hop — either one filled
-colored line per hop, or an average/max-across-hops aggregate. See [`dashboard/`](dashboard/)
-for details and local-dev instructions.
+Charts packet **loss over time** — `y(x) = loss(time)` — as filled, colored area lines.
+The InfluxDB token stays server-side in the `/api/*` route handlers; the browser never sees it.
 
-For ad-hoc queries the store is plain SQL (via the optional Explorer UI or `influxdb3 query`):
+**Filters**
+- **Destination** — single-select (loss/hop paths are only coherent within one destination).
+- **Time range** — 15m / 1h / 3h / 6h / 24h / 72h.
+- **Node** — multiselect, or **All**.
+- **Hop mode** — **Per hop** (one filled line per hop; pick which via the **Hops** multiselect,
+  or **All**; a single hop for a single-hop view), **Average all hops**, or **Max all hops**.
+- With >1 node selected, series split and are labelled `node · hop`. Auto-refreshes every 30s.
+
+### Run the dashboard locally (bun)
+
+```bash
+cd dashboard
+bun install
+cp .env.example .env.local      # set INFLUX_TOKEN (and INFLUX_HOST if not localhost)
+bun dev                         # http://localhost:3000
+```
+
+Server-side env vars: `INFLUX_HOST` (default `http://localhost:8181`), `INFLUX_TOKEN`
+(required), `INFLUX_DATABASE` (default `mtr`).
+
+### Ad-hoc SQL
+
+The store is plain SQL (Explorer UI or `influxdb3 query`):
 
 ```sql
 -- packet loss by node for a destination, last hour
@@ -117,6 +137,17 @@ WHERE destination = '8.8.8.8' AND time > now() - INTERVAL '1 hour'
 GROUP BY node, hop
 ORDER BY node, hop;
 ```
+
+---
+
+## Repository layout
+
+| Path        | What                                                                 |
+|-------------|---------------------------------------------------------------------|
+| `agent/`    | `mtr` probe + InfluxDB 3 writer (`agent.py`), Alpine `Dockerfile`.   |
+| `server/`   | `docker-compose.yml` — InfluxDB 3 + dashboard (+ optional Explorer). |
+| `dashboard/`| Next.js + shadcn UI; `app/api/*` query InfluxDB, `components/*` chart. |
+| `.github/`  | CI that builds & pushes the agent and dashboard images to GHCR.     |
 
 ## Requirements
 - Docker on the central host and on each agent node.
