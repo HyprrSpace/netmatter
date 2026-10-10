@@ -102,16 +102,38 @@ docker run -d --name mtr-agent --restart=unless-stopped \
 
 ## 3. The dashboard
 
-Charts packet **loss over time** — `y(x) = loss(time)` — as filled, colored area lines.
-The InfluxDB token stays server-side in the `/api/*` route handlers; the browser never sees it.
+A dark, single-page view built to answer "is something wrong, and where?". It reads only
+the `mtr` measurement, and the InfluxDB token stays server-side in the `/api/*` route
+handlers. Data auto-refreshes every 30s (paused while the tab is hidden). The selected range,
+destination and node live in the URL, so you can share a link to a view.
 
-**Filters**
-- **Destination** — single-select (loss/hop paths are only coherent within one destination).
-- **Time range** — 15m / 1h / 3h / 6h / 24h / 72h.
-- **Node** — multiselect, or **All**.
-- **Hop mode** — **Per hop** (one filled line per hop; pick which via the **Hops** multiselect,
-  or **All**; a single hop for a single-hop view), **Average all hops**, or **Max all hops**.
-- With >1 node selected, series split and are labelled `node · hop`. Auto-refreshes every 30s.
+**Fleet health** (time range 15m / 1h / 3h / 6h / 24h / 72h)
+- **Stats strip**: nodes reporting, healthy paths, share of runs with no loss, and the worst path.
+- **Node × destination matrix**: end-to-end loss, average RTT ± jitter and a status for every
+  path. Click a cell to inspect that path.
+- **Findings**: problems ranked by severity:
+  - agents that stopped reporting (silent > 5 min is degraded, > 15 min is critical);
+  - loss at the destination (≥ 1% is degraded, ≥ 5% is critical) and destinations that stopped answering;
+  - high jitter (stdev ≥ 10 ms);
+  - latency regressions (last 10 min ≥ 1.5× the range average);
+  - loss bursts;
+  - destinations that are lossy from every node, which points at the far end rather than your side.
+
+**Path inspector** (one destination; opens on the worst path by default)
+- KPIs for the selected node → destination: loss (avg / peak / last 10 min), RTT, jitter,
+  worst RTT, loss-free runs and path length.
+- **Timeline**: final-hop loss and RTT per node on a synced crosshair. Click a node to hide it.
+  With one node visible, a best–worst RTT band is drawn. Gaps mean the agent sent no data.
+- **Hop × time heatmap**: where in the path loss (or a latency spike above the hop's own
+  median) appears, and when.
+- **Hop table** (MTR-style): loss, peak, avg/best/worst RTT, jitter and the latency each hop
+  adds, plus an automatic verdict per hop:
+  - `loss starts`: loss first appears here and carries through to the destination, so look here;
+  - `ICMP rate-limit`: loss that later hops don't show, meaning the router deprioritises replies to mtr and traffic is unaffected;
+  - `+N ms` / `slow reply`: a latency step that persists, or one slow router that doesn't affect the path;
+  - `N routes` / `seen x%`: the path changed during the window.
+
+Thresholds live in `dashboard/lib/health.ts`.
 
 ### Run the dashboard locally (bun)
 
