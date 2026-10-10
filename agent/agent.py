@@ -43,7 +43,7 @@ def get_config():
 def run_mtr(destination, cycles):
     """Run mtr against a destination and return the parsed JSON report."""
     result = subprocess.run(
-        ["mtr", "--report", "--json", "--report-cycles", str(cycles), destination],
+        ["mtr", "--no-dns", "--report", "--json", "--report-cycles", str(cycles), destination],
         capture_output=True,
         text=True,
         check=True,
