@@ -145,7 +145,26 @@ bun dev                         # http://localhost:3000
 ```
 
 Server-side env vars: `INFLUX_HOST` (default `http://localhost:8181`), `INFLUX_TOKEN`
-(required), `INFLUX_DATABASE` (default `mtr`).
+(required), `INFLUX_DATABASE` (default `mtr`), `PANEL_PASSWORD` (optional).
+
+### Password protection
+
+Set `PANEL_PASSWORD` in `server/.env` (Docker Compose) or `dashboard/.env.local`
+(local development) to require a static password for the panel and its data APIs:
+
+```dotenv
+PANEL_PASSWORD=replace-with-a-long-random-password
+```
+
+Recreate the dashboard container (`docker compose up -d dashboard` from `server/`)
+or restart the local server after changing it. The browser prompts for the username
+**`admin`** and the configured password. API clients can use HTTP Basic auth too
+(e.g. `curl --user admin https://your-panel/api/overview`, which prompts for the password).
+Unset or empty `PANEL_PASSWORD` leaves access open, as before.
+
+Use **HTTPS** through a reverse proxy when exposing the panel outside a trusted network:
+HTTP Basic credentials are encoded, not encrypted. This protects only the netmatter
+panel and its APIs, not the separate InfluxDB or Explorer ports.
 
 ### Ad-hoc SQL
 

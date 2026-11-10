@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { requirePanelAuth } from "@/lib/auth";
 import {
   queryInflux,
   sqlStr,
@@ -37,6 +38,9 @@ type RunsRow = { node: string; runs: number };
 // Everything the detail view needs for one destination: the end-to-end
 // timeline per node, per-hop aggregates, and a hop × time grid.
 export async function GET(req: NextRequest) {
+  const challenge = requirePanelAuth(req);
+  if (challenge) return challenge;
+
   const p = req.nextUrl.searchParams;
   const destination = p.get("destination");
   const range = p.get("range") ?? "1h";
