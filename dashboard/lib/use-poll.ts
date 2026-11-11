@@ -35,6 +35,11 @@ export function usePoll<T>(url: string | null, refreshKey = 0) {
       setState((s) => ({ ...s, loading: true }));
       fetch(url, { signal: ctrl.signal })
         .then(async (r) => {
+          if (r.status === 401) {
+            const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+            window.location.assign(`/login?next=${encodeURIComponent(returnTo)}`);
+            throw new DOMException("Session expired", "AbortError");
+          }
           const json = await r.json().catch(() => ({}));
           if (!r.ok) throw new Error(json.error ?? `HTTP ${r.status}`);
           return json as T;

@@ -1,1 +1,1 @@
-influxdb3-python
+influxdb3-python==0.21.0

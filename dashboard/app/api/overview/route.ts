@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { requirePanelSession } from "@/lib/auth";
 import {
   queryInflux,
   finalHopCte,
@@ -26,6 +27,9 @@ type LatestRow = { node: string; destination: string; hop: string; loss: number 
 
 // Fleet-wide health: one end-to-end summary per node × destination path.
 export async function GET(req: NextRequest) {
+  const challenge = requirePanelSession(req);
+  if (challenge) return challenge;
+
   const range = req.nextUrl.searchParams.get("range") ?? "1h";
   const r = RANGES[range];
   if (!r) return Response.json({ error: "invalid range" }, { status: 400 });
