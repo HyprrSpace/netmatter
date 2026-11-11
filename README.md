@@ -157,14 +157,14 @@ PANEL_PASSWORD=replace-with-a-long-random-password
 ```
 
 Recreate the dashboard container (`docker compose up -d dashboard` from `server/`)
-or restart the local server after changing it. The browser prompts for the username
-**`admin`** and the configured password. API clients can use HTTP Basic auth too
-(e.g. `curl --user admin https://your-panel/api/overview`, which prompts for the password).
+or restart the local server after changing it. The panel shows a password form and stores
+the session in a signed, HttpOnly cookie for seven days. Use the log-out button
+in the top-right corner to end it. Changing `PANEL_PASSWORD` invalidates existing sessions.
 Unset or empty `PANEL_PASSWORD` leaves access open, as before.
 
-Use **HTTPS** through a reverse proxy when exposing the panel outside a trusted network:
-HTTP Basic credentials are encoded, not encrypted. This protects only the netmatter
-panel and its APIs, not the separate InfluxDB or Explorer ports.
+Use **HTTPS** through a reverse proxy when exposing the panel outside a trusted network.
+This protects only the netmatter panel and its APIs, not the separate InfluxDB or Explorer
+ports.
 
 ### Ad-hoc SQL
 

@@ -1,4 +1,4 @@
-import { RefreshCw } from "lucide-react";
+import { LogOut, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fmtDuration } from "@/lib/health";
 import { useNow } from "@/lib/use-poll";
@@ -15,7 +15,7 @@ export function Backdrop() {
   );
 }
 
-function Logo() {
+export function Logo() {
   return (
     <div className="flex items-center gap-2.5">
       <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -40,6 +40,7 @@ export function Navbar({
   error,
   loading,
   onRefresh,
+  authEnabled,
 }: {
   range: string;
   onRange: (r: string) => void;
@@ -47,6 +48,7 @@ export function Navbar({
   error: string | null;
   loading: boolean;
   onRefresh: () => void;
+  authEnabled: boolean;
 }) {
   const now = useNow();
   return (
@@ -96,6 +98,18 @@ export function Navbar({
           >
             <RefreshCw strokeWidth={1.75} className={cn("size-4", loading && "animate-spin")} />
           </button>
+          {authEnabled && (
+            <form action="/api/auth/logout" method="post">
+              <button
+                type="submit"
+                aria-label="Log out"
+                title="Log out"
+                className="matte flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
+              >
+                <LogOut strokeWidth={1.75} className="size-4" />
+              </button>
+            </form>
+          )}
         </div>
       </nav>
     </div>

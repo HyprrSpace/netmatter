@@ -22,7 +22,7 @@ import { HopHeatmap, HopTable } from "@/components/hop-analysis";
 import { SectionHeading, StatusDot, StatusIcon } from "@/components/status";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export function Dashboard() {
+export function Dashboard({ authEnabled }: { authEnabled: boolean }) {
   const [ready, setReady] = React.useState(false);
   const [range, setRange] = React.useState("1h");
   const [destination, setDestination] = React.useState<string | null>(null);
@@ -107,6 +107,7 @@ export function Dashboard() {
         error={ov.error ?? pd.error}
         loading={ov.loading || pd.loading}
         onRefresh={() => setRefreshKey((k) => k + 1)}
+        authEnabled={authEnabled}
       />
       <main className="mx-auto w-full max-w-6xl px-4 pb-20 pt-10 sm:pt-14">
         {!overview ? (
